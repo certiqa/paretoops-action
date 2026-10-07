@@ -1,0 +1,125 @@
+name: ParetoOps
+description: Cost per successful task for LLM apps. Gate CI on accuracy and cost, and see the Pareto frontier on every pull request.
+author: Certiqa
+branding:
+  icon: trending-down
+  color: green
+
+inputs:
+  results:
+    description: Evaluation results file(s), directory or pattern (space-separated). promptfoo, LangSmith, Braintrust, DeepEval, CSV and ParetoOps JSON are detected automatically.
+    required: true
+  config:
+    description: Configuration (model/prompt) to gate. With a license key, the sweet spot (the cheapest configuration per success that clears min-acc) is gated when omitted. Without a key, omitting it runs an analysis instead of a gate.
+    required: false
+  min-acc:
+    description: Minimum required success rate, for example 0.9. Defaults to the CLI default.
+    required: false
+  max-cost-per-success:
+    description: Maximum allowed cost per successful task in USD.
+    required: false
+  format:
+    description: "Input format: auto, promptfoo, langsmith, braintrust, deepeval, csv or pareto."
+    required: false
+  license-key:
+    description: ParetoOps license key (store it as a secret). Enables the job summary report, the sticky PR comment and the frontier chart. A free key is available at https://paretoops.dev/free. Without a key the action runs the threshold check only.
+    required: false
+  github-token:
+    description: Token used to post the PR comment and to save baselines. Needs pull-requests write for comments and contents write for baselines.
+    required: false
+    default: ${{ github.token }}
+  baseline:
+    description: "Where the comparison baseline comes from: none, file or auto (the git-branch store). Pro: with a Free key, setting it fails the step."
+    required: false
+  baseline-file:
+    description: "Earlier results to compare against, paired by taskId (implies baseline file). Pro: with a Free key, setting it fails the step."
+    required: false
+  baseline-suite:
+    description: Baseline store suite name (Pro).
+    required: false
+  baseline-strategy:
+    description: "How baselines are produced: merge-queue, post-merge or promote-pr (Pro)."
+    required: false
+  save-baseline:
+    description: After a passing gate, save these results as the baseline for this commit (Pro). Never applies to plain pull-request runs.
+    required: false
+    default: "false"
+  accuracy-margin:
+    description: Allowed accuracy drop versus the baseline before failing, for example 0.02 (Pro).
+    required: false
+  cost-margin:
+    description: Allowed cost-per-success increase versus the baseline, for example 0.10 (Pro).
+    required: false
+  strict:
+    description: Also fail when the baseline comparison is inconclusive (Pro).
+    required: false
+    default: "false"
+  reprice:
+    description: Recompute costUsd on both sides of every comparison from token counts using the pricing catalog.
+    required: false
+    default: "false"
+  pr-comment:
+    description: "Post or update the PR comment: auto, always or never."
+    required: false
+  version:
+    description: Version range of the pareto-ops npm package to run. The default follows the latest 1.x release; set an exact version, for example 1.1.0, for reproducible runs.
+    required: false
+    default: "1"
+
+outputs:
+  gate-status:
+    description: PASSED, FAILED or SKIPPED (fork pull requests are skipped).
+    value: ${{ steps.run.outputs.gate-status }}
+  baseline-verdict:
+    description: BETTER, NON_INFERIOR, WORSE or INCONCLUSIVE (Pro).
+    value: ${{ steps.run.outputs.baseline-verdict }}
+  anchor-verdict:
+    description: BETTER, NON_INFERIOR, WORSE or INCONCLUSIVE (Pro).
+    value: ${{ steps.run.outputs.anchor-verdict }}
+  baseline-sha:
+    description: Commit of the baseline that was compared against.
+    value: ${{ steps.run.outputs.baseline-sha }}
+  frontier-count:
+    description: Number of configurations on the Pareto frontier.
+    value: ${{ steps.run.outputs.frontier-count }}
+  dominated-count:
+    description: Number of dominated configurations.
+    value: ${{ steps.run.outputs.dominated-count }}
+  sweet-spot-config:
+    description: The configuration with the best cost per successful task above the accuracy bar.
+    value: ${{ steps.run.outputs.sweet-spot-config }}
+  cost-savings-estimate:
+    description: Estimated savings from moving to the sweet-spot configuration.
+    value: ${{ steps.run.outputs.cost-savings-estimate }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install ParetoOps
+      shell: bash
+      env:
+        PARETO_OPS_VERSION: ${{ inputs.version }}
+      run: bash "$GITHUB_ACTION_PATH/install.sh"
+
+    - name: Run ParetoOps
+      id: run
+      shell: bash
+      env:
+        PARETO_LICENSE_KEY: ${{ inputs.license-key }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        IN_RESULTS: ${{ inputs.results }}
+        IN_CONFIG: ${{ inputs.config }}
+        IN_MIN_ACC: ${{ inputs.min-acc }}
+        IN_MAX_COST: ${{ inputs.max-cost-per-success }}
+        IN_FORMAT: ${{ inputs.format }}
+        IN_BASELINE: ${{ inputs.baseline }}
+        IN_BASELINE_FILE: ${{ inputs.baseline-file }}
+        IN_BASELINE_SUITE: ${{ inputs.baseline-suite }}
+        IN_BASELINE_STRATEGY: ${{ inputs.baseline-strategy }}
+        IN_SAVE_BASELINE: ${{ inputs.save-baseline }}
+        IN_ACCURACY_MARGIN: ${{ inputs.accuracy-margin }}
+        IN_COST_MARGIN: ${{ inputs.cost-margin }}
+        IN_STRICT: ${{ inputs.strict }}
+        IN_REPRICE: ${{ inputs.reprice }}
+        IN_PR_COMMENT: ${{ inputs.pr-comment }}
+      run: bash "$GITHUB_ACTION_PATH/run.sh"

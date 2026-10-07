@@ -1,0 +1,78 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # Weekly, so a new pareto-ops release on npm that breaks the action is caught without a push here.
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  scripts:
+    name: scripts (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run script tests against the published npm package
+        shell: bash
+        run: bash test/run-tests.sh
+
+  action:
+    name: action (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gate that passes
+        id: pass
+        uses: ./
+        with:
+          results: test/fixtures/eval_benchmark.json
+          config: claude-haiku-4-5
+          min-acc: 0.9
+
+      - name: Gate that fails the bar
+        id: fail
+        continue-on-error: true
+        uses: ./
+        with:
+          results: test/fixtures/eval_benchmark.json
+          config: claude-haiku-4-5
+          min-acc: 0.999
+
+      - name: Analysis without a config
+        id: analyze
+        uses: ./
+        with:
+          results: test/fixtures/eval_benchmark.json
+          min-acc: 0.9
+
+      - name: Check outputs
+        shell: bash
+        env:
+          PASS_STATUS: ${{ steps.pass.outputs.gate-status }}
+          FAIL_STATUS: ${{ steps.fail.outputs.gate-status }}
+          FAIL_OUTCOME: ${{ steps.fail.outcome }}
+          ANALYZE_OUTCOME: ${{ steps.analyze.outcome }}
+        run: |
+          set -x
+          [ "$PASS_STATUS" = PASSED ]
+          [ "$FAIL_STATUS" = FAILED ]
+          [ "$FAIL_OUTCOME" = failure ]
+          [ "$ANALYZE_OUTCOME" = success ]
