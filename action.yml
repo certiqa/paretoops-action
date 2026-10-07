@@ -1,4 +1,4 @@
-name: ParetoOps
+name: ParetoOps CI Gate
 description: Cost per successful task for LLM apps. Gate CI on accuracy and cost, and see the Pareto frontier on every pull request.
 author: Certiqa
 branding:
