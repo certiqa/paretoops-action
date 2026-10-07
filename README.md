@@ -7,7 +7,7 @@ This repository is a thin wrapper. The ParetoOps engine is proprietary and ships
 ## Quick start
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@v7
 - run: npm ci && npm run evals -- --output results.json
 - uses: certiqa/paretoops-action@v1
   with:
